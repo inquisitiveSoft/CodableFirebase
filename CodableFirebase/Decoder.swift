@@ -9,35 +9,22 @@
 import Foundation
 
 class _FirebaseDecoder : Decoder {
-    /// Options set on the top-level encoder to pass down the decoding hierarchy.
-    struct _Options {
-        let dateDecodingStrategy: DateDecodingStrategy?
-        let dataDecodingStrategy: DataDecodingStrategy?
-        let skipFirestoreTypes: Bool
-        let userInfo: [CodingUserInfoKey : Any]
-    }
-    
     // MARK: Properties
     /// The decoder's storage.
     fileprivate var storage: _FirebaseDecodingStorage
     
-    fileprivate let options: _Options
-    
     /// The path to the current point in encoding.
     fileprivate(set) public var codingPath: [CodingKey]
-    
-    /// Contextual user-provided information for use during encoding.
-    public var userInfo: [CodingUserInfoKey : Any] {
-        return options.userInfo
-    }
+
+    let userInfo: [CodingUserInfoKey : Any]
     
     // MARK: - Initialization
     /// Initializes `self` with the given top-level container and options.
-    init(referencing container: Any, at codingPath: [CodingKey] = [], options: _Options) {
+    init(referencing container: Any, at codingPath: [CodingKey] = [], userInfo: [CodingUserInfoKey: Any]) {
         self.storage = _FirebaseDecodingStorage()
         self.storage.push(container: container)
         self.codingPath = codingPath
-        self.options = options
+        self.userInfo = userInfo
     }
     
     // MARK: - Decoder Methods
@@ -426,7 +413,7 @@ fileprivate struct _FirebaseKeyedDecodingContainer<K : CodingKey> : KeyedDecodin
         defer { self.decoder.codingPath.removeLast() }
         
         let value: Any = container[key.stringValue] ?? NSNull()
-        return _FirebaseDecoder(referencing: value, at: self.decoder.codingPath, options: decoder.options)
+        return _FirebaseDecoder(referencing: value, at: self.decoder.codingPath, userInfo: decoder.userInfo)
     }
     
     public func superDecoder() throws -> Decoder {
@@ -787,7 +774,7 @@ fileprivate struct _FirebaseUnkeyedDecodingContainer : UnkeyedDecodingContainer 
         
         let value = self.container[self.currentIndex]
         self.currentIndex += 1
-        return _FirebaseDecoder(referencing: value, at: decoder.codingPath, options: decoder.options)
+        return _FirebaseDecoder(referencing: value, at: decoder.codingPath, userInfo: decoder.userInfo)
     }
 }
 
@@ -1125,7 +1112,7 @@ extension _FirebaseDecoder {
     func unbox(_ value: Any, as type: Date.Type) throws -> Date? {
         guard !(value is NSNull) else { return nil }
         
-        guard let options = options.dateDecodingStrategy else {
+        guard let options = userInfo.dateDecodingStrategy else {
             guard let date = value as? Date else {
                 throw DecodingError._typeMismatch(at: codingPath, expectation: type, reality: value)
             }
@@ -1178,7 +1165,7 @@ extension _FirebaseDecoder {
     func unbox(_ value: Any, as type: Data.Type) throws -> Data? {
         guard !(value is NSNull) else { return nil }
         
-        guard let options = options.dataDecodingStrategy else {
+        guard let options = userInfo.dataDecodingStrategy else {
             guard let data = value as? Data else {
                 throw DecodingError._typeMismatch(at: codingPath, expectation: type, reality: value)
             }
@@ -1247,6 +1234,7 @@ extension _FirebaseDecoder {
             guard let decimal = try self.unbox(value, as: Decimal.self) else { return nil }
             decoded = decimal as! T
         } else if T.self == IndexSet.self || T.self == NSIndexSet.self {
+        else if userInfo.skipFirestoreTypes && (T.self is FirestoreDecodable.Type) {
             decoded = value as! T
         } else if options.skipFirestoreTypes && (T.self is FirestoreDecodable.Type) {
             decoded = value as! T
