@@ -1237,14 +1237,9 @@ extension _FirebaseDecoder {
             guard let decimal = try self.unbox(value, as: Decimal.self) else { return nil }
             decoded = decimal as! T
         } else if T.self == IndexSet.self || T.self == NSIndexSet.self {
-        else if userInfo.skipFirestoreTypes && (T.self is FirestoreDecodable.Type) {
-            let strategy = userInfo.firestoreTypeDecodingStrategy
-            switch strategy {
-            case .deferredToPtotocol:
             decoded = value as! T
-        } else if options.skipFirestoreTypes && (T.self is FirestoreDecodable.Type) {
+        } else if userInfo.skipFirestoreTypes && (T.self is FirestoreDecodable.Type) {
             decoded = value as! T
-            }
         } else {
             self.storage.push(container: value)
             decoded = try T(from: self)
